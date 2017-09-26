@@ -14,8 +14,10 @@
 			var m = 50; //距離畫布邊緣的邊界
 			var	n = 50; //
 
-			var l = d3.max(data, function(d,i){return i;});
-			l = l+1;
+			var l = d3.max(data, function(d){
+	  			console.log(d.amount);
+    				return parseInt(d.amount);
+  			});
 			console.log(l);
 
 
@@ -27,7 +29,7 @@
 			var rectChart = svg.append("rect")
 								.attr("x", function(d,i){return xScale(i);})
 								.attr("width", xScale.bandwidth())
-								.attr("height", function(d){return yScale(d);})
+								.attr("height", function(d){return yScale(d.n);})
 								.attr("fill", function(d){return "rgb(0, 0, " + (d * 10) + ")";})
 								.on("click", function(d){console.log(d)})
 
