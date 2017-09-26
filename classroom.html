@@ -26,7 +26,6 @@
 			var svg = d3.select('body').append('svg').attr('width', w).attr('height', h);
 			var rectChart = svg.append("rect")
 								.attr("x", function(d,i){return xScale(i);})
-								.attr("y",function(d){return d.n;})
 								.attr("width", xScale.bandwidth())
 								.attr("height", function(d){return yScale(d);})
 								.attr("fill", function(d){return "rgb(0, 0, " + (d * 10) + ")";})
