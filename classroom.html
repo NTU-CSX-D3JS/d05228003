@@ -1,6 +1,6 @@
 <html>
 <head>
-	<script src="https://d3js.org/d3.v3.min.js"></script>
+	<script src="https://d3js.org/d3.v4.min.js"></script>
 </head>
 <body>
 	<script>
@@ -19,15 +19,15 @@
 			console.log(l);
 
 
-			var xScale = d3.scale.ordinal().domain([0,4]).rangeRoundBands([0, w], 0.05);
-			var yScale = d3.scale.linear().domain([0, l]).range([0, h]);
+			var xScale = d3.scaleBand().domain([0,4]).rangeRound([0, w]).padding(0.05);
+			var yScale = d3.scaleLinear().domain([0, l]).range([0, h]);
 
 
 			var svg = d3.select('body').append('svg').attr('width', w).attr('height', h);
 			var rectChart = svg.append("rect")
 								.attr("x", function(d,i){return xScale(i);})
 								.attr("y",function(d){return d.n;})
-								.attr("width", xScale.rangeBand())
+								.attr("width", xScale.bandwidth())
 								.attr("height", function(d){return yScale(d);})
 								.attr("fill", function(d){return "rgb(0, 0, " + (d * 10) + ")";})
 								.on("click", function(d){console.log(d)})
