@@ -1,0 +1,47 @@
+<html>
+<head>
+	<script src="https://d3js.org/d3.v3.min.js"></script>
+</head>
+<body>
+	<script>
+		url = "https://ntu-csx-d3js.github.io/d05228003/classroom.csv"
+
+		d3.csv(url, function(data){
+			console.log(data);
+
+			var w = 500; //畫布寬
+			var h = 500; //畫布高
+			var m = 50; //距離畫布邊緣的邊界
+			var	n = 50; //
+
+			var l = d3.max(data, function(d,i){return i;});
+			l = l+1;
+			console.log(l);
+
+
+			var xScale = d3.scale.ordinal().domain([0,4]).rangeRoundBands([0, w], 0.05);
+			var yScale = d3.scale.linear().domain([0, l]).range([0, h]);
+
+
+			var svg = d3.select('body').append('svg').attr('width', w).attr('height', h);
+			var rectChart = svg.append("rect")
+								.attr("x", function(d,i){return xScale(i);})
+								.attr("y",function(d){return d.n;})
+								.attr("width", xScale.rangeBand())
+								.attr("height", function(d){return yScale(d);})
+								.attr("fill", function(d){return "rgb(0, 0, " + (d * 10) + ")";})
+								.on("click", function(d){console.log(d)})
+
+
+			//var lineChart = svg.append("path").attr("class", "line").attr("stroke", "blue").attr("stroke-width", 3).attr("fill", "none").attr("d", function(d){return lineMS(data);});
+			//var lineChart = svg.append("path").attr("class", "line").attr("stroke", "green").attr("stroke-width", 3).attr("fill", "none").attr("d", function(d){return linePHD(data);});
+
+			//AXIS
+			//var yAxis= d3.axisLeft(yScale);
+			//var xAxis = d3.axisBottom(xScale);
+			//var XaxisAppend = svg.append("g").attr("class", "axis").attr("transform", "translate(0, "+(h-n)+")").call(xAxis);
+			//var YaxisAppend = svg.append("g").attr("class", "axis").attr("transform", "translate("+n+", 0)").call(yAxis);
+		})
+	</script>>
+</body>
+</html>
