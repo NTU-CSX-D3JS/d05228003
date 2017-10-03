@@ -1,0 +1,43 @@
+<html>
+<head>
+	<script src="https://d3js.org/d3.v4.min.js"></script>
+</head>
+<body>
+	<script>
+		url = "https://ntu-csx-d3js.github.io/d05228003/ntu_statis.csv"
+
+		d3.csv(url, function(data){
+			console.log(data);
+
+			var w = 600; //畫布寬
+			var h = 500; //畫布高
+			var m = 50; //距離畫布邊緣的邊界
+			var	n = 50; //
+
+			var Ymax = d3.max(data, function(d){return d.BC; });
+			var Ymin = d3.min(data, function(d){return d.PhD; });
+			var Xmax = d3.max(data, function(d){return d.year; });
+			var Xmin = d3.min(data, function(d){return d.year; });
+
+			var xScale = d3.scaleLinear().domain([Xmin, Xmax]).range([50, w-m]);
+			var yScale = d3.scaleLinear().domain([Ymin, Ymax]).range([h-m, 20]);
+
+			var lineBC = d3.line().x(function(d){return xScale(d.year);}).y(function(d){return yScale(d.BC);});
+			var lineMS = d3.line().x(function(d){return xScale(d.year);}).y(function(d){return yScale(d.MS);});
+			var linePHD = d3.line().x(function(d){return xScale(d.year);}).y(function(d){return yScale(d.PhD);});
+
+
+			var svg = d3.select('body').append('svg').attr('width', w).attr('height', h);
+			var lineChart = svg.append("path").attr("class", "line").attr("stroke", "red").attr("stroke-width", 3).attr("fill", "none").attr("d", function(d){return lineBC(data);});
+			var lineChart = svg.append("path").attr("class", "line").attr("stroke", "blue").attr("stroke-width", 3).attr("fill", "none").attr("d", function(d){return lineMS(data);});
+			var lineChart = svg.append("path").attr("class", "line").attr("stroke", "green").attr("stroke-width", 3).attr("fill", "none").attr("d", function(d){return linePHD(data);});
+
+			//AXIS
+			var yAxis= d3.axisLeft(yScale);
+			var xAxis = d3.axisBottom(xScale);
+			var XaxisAppend = svg.append("g").attr("class", "axis").attr("transform", "translate(0, "+(h-n)+")").call(xAxis);
+			var YaxisAppend = svg.append("g").attr("class", "axis").attr("transform", "translate("+n+", 0)").call(yAxis);
+		})
+	</script>>
+</body>
+</html>
