@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+body{
+    width:1920px;
+    margin:50px auto;
+}
+path {  stroke: #fff; }
+path:hover {  opacity:0.9; }
+rect:hover {  fill:blue; }
+.axis {  font: 10px sans-serif; }
+.legend tr{    border-bottom:1px solid grey; }
+.legend tr:first-child{    border-top:1px solid grey; }
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.x.axis path {  display: none; }
+.legend{
+    margin-bottom:76px;
+    display:inline-block;
+    border-collapse: collapse;
+    border-spacing: 0px;
+}
+.legend td{
+    padding:4px 5px;
+    vertical-align:bottom;
+}
+.legendFreq, .legendPerc{
+    align:right;
+    width:50px;
+}
+
+</style>
+<body>
+<div id='dashboard'>
+</div>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script>
+function dashboard(id, fData){
+    console.log(fData);
+    var barColor = 'steelblue';
+    function segColor(c){ return {over10:"#807dba",over15:"#cc9933",over20:"#cccccc",over25:"#e08214",over30:"#ffcc00",over50:"#41ab5d",over75:"#ff0099"}[c]; }
+    
+    // compute total for each state.
+    fData.forEach(function(d){d.total=d.tree_num.over10+d.tree_num.over15+d.tree_num.over20+d.tree_num.over25+d.tree_num.over30+d.tree_num.over50+d.tree_num.over75;});
+    
+    // function to handle histogram.
+    function histoGram(fD){
+        var hG={},    hGDim = {t: 60, r: 0, b: 30, l: 0}; //定義直方圖的維度參數
+        hGDim.w = 500 - hGDim.l - hGDim.r, //定義直方圖的寬
+        hGDim.h = 300 - hGDim.t - hGDim.b; //定義直方圖的高
+            
+        //create svg for histogram.
+        var hGsvg = d3.select(id).append("svg") //在名稱為id的框架內，加入svg
+            .attr("width", hGDim.w + hGDim.l + hGDim.r) //定義svg的寬度
+            .attr("height", hGDim.h + hGDim.t + hGDim.b).append("g") //定義svg的高度，並加入物件g
+            .attr("transform", "translate(" + hGDim.l + "," + hGDim.t + ")");
+
+        // create function for x-axis mapping.
+        var x = d3.scale.ordinal().rangeRoundBands([0, hGDim.w], 0.1) //x軸的左端起始值, x軸的右端極值, 長條柱狀間距
+                .domain(fD.map(function(d) { return d[0]; }));
+
+        // Add x-axis to the histogram svg.
+        hGsvg.append("g").attr("class", "x axis") //在物件g中，加入class和x axis的屬性
+            .attr("transform", "translate(0," + hGDim.h + ")")
+            .call(d3.svg.axis().scale(x).orient("bottom")); //利用變數x畫出x軸
+
+        // Create function for y-axis map.
+        var y = d3.scale.linear().range([hGDim.h, 0]) 
+                .domain([0, d3.max(fD, function(d) { return d[1]; })]);
+
+        // Create bars for histogram to contain rectangles and freq labels.
+        var bars = hGsvg.selectAll(".bar").data(fD).enter()
+                .append("g").attr("class", "bar");
+        
+        //create the rectangles.
+        bars.append("rect")
+            .attr("x", function(d) { return x(d[0]); })
+            .attr("y", function(d) { return y(d[1]); })
+            .attr("width", x.rangeBand())
+            .attr("height", function(d) { return hGDim.h - y(d[1]); })
+            .attr('fill',barColor)
+            .on("mouseover",mouseover)// mouseover is defined below.
+            .on("mouseout",mouseout);// mouseout is defined below.
+            
+        //Create the frequency labels above the rectangles.
+        bars.append("text").text(function(d){ return d3.format(",")(d[1])})
+            .attr("x", function(d) { return x(d[0])+x.rangeBand()/2; })
+            .attr("y", function(d) { return y(d[1])-5; })
+            .attr("text-anchor", "middle");
+        
+        function mouseover(d){  // utility function to be called on mouseover.
+            // filter for selected state.
+            var st = fData.filter(function(s){ return s.Country_Ch == d[0];})[0],
+                nD = d3.keys(st.tree_num).map(function(s){ return {type:s, tree_num:st.tree_num[s]};});
+               
+            // call update functions of pie-chart and legend.    
+            pC.update(nD);
+            leg.update(nD);
+        }
+        
+        function mouseout(d){    // utility function to be called on mouseout.
+            // reset the pie-chart and legend.    
+            pC.update(tF);
+            leg.update(tF);
+        }
+        
+        // create function to update the bars. This will be used by pie-chart.
+        hG.update = function(nD, color){
+            // update the domain of the y-axis map to reflect change in frequencies.
+            y.domain([0, d3.max(nD, function(d) { return d[1]; })]);
+            
+            // Attach the new data to the bars.
+            var bars = hGsvg.selectAll(".bar").data(nD);
+            
+            // transition the height and color of rectangles.
+            bars.select("rect").transition().duration(500)
+                .attr("y", function(d) {return y(d[1]); })
+                .attr("height", function(d) { return hGDim.h - y(d[1]); })
+                .attr("fill", color);
+
+            // transition the frequency labels location and change value.
+            bars.select("text").transition().duration(500)
+                .text(function(d){ return d3.format(",")(d[1])})
+                .attr("y", function(d) {return y(d[1])-5; });            
+        }        
+        return hG;
+    }
+    
+    // function to handle pieChart.
+    function pieChart(pD){
+        var pC ={},    pieDim ={w:250, h: 250};
+        pieDim.r = Math.min(pieDim.w, pieDim.h) / 2;
+                
+        // create svg for pie chart.
+        var piesvg = d3.select(id).append("svg")
+            .attr("width", pieDim.w).attr("height", pieDim.h).append("g")
+            .attr("transform", "translate("+pieDim.w/2+","+pieDim.h/2+")");
+        
+        // create function to draw the arcs of the pie slices.
+        var arc = d3.svg.arc().outerRadius(pieDim.r - 10).innerRadius(0);
+
+        // create a function to compute the pie slice angles.
+        var pie = d3.layout.pie().sort(null).value(function(d) { return d.tree_num; });
+
+        // Draw the pie slices.
+        piesvg.selectAll("path").data(pie(pD)).enter().append("path").attr("d", arc)
+            .each(function(d) { this._current = d; })
+            .style("fill", function(d) { return segColor(d.data.type); })
+            .on("mouseover",mouseover).on("mouseout",mouseout);
+
+        // create function to update pie-chart. This will be used by histogram.
+        pC.update = function(nD){
+            piesvg.selectAll("path").data(pie(nD)).transition().duration(500)
+                .attrTween("d", arcTween);
+        }        
+        // Utility function to be called on mouseover a pie slice.
+        function mouseover(d){
+            // call the update function of histogram with new data.
+            hG.update(fData.map(function(v){ 
+                return [v.Country_Ch,v.tree_num[d.data.type]];}),segColor(d.data.type));
+        }
+        //Utility function to be called on mouseout a pie slice.
+        function mouseout(d){
+            // call the update function of histogram with all data.
+            hG.update(fData.map(function(v){
+                return [v.Country_Ch,v.total];}), barColor);
+        }
+        // Animating the pie-slice requiring a custom function which specifies
+        // how the intermediate paths should be drawn.
+        function arcTween(a) {
+            var i = d3.interpolate(this._current, a);
+            this._current = i(0);
+            return function(t) { return arc(i(t));    };
+        }    
+        return pC;
+    }
+    
+    // function to handle legend.
+    function legend(lD){
+        var leg = {};
+            
+        // create table for legend.
+        var legend = d3.select(id).append("table").attr('class','legend');
+        
+        // create one row per segment.
+        var tr = legend.append("tbody").selectAll("tr").data(lD).enter().append("tr");
+            
+        // create the first column for each segment.
+        tr.append("td").append("svg").attr("width", '16').attr("height", '16').append("rect")
+            .attr("width", '16').attr("height", '16')
+			.attr("fill",function(d){ return segColor(d.type); });
+            
+        // create the second column for each segment.
+        tr.append("td").text(function(d){ return d.type;});
+
+        // create the third column for each segment.
+        tr.append("td").attr("class",'legendFreq')
+            .text(function(d){ return d3.format(",")(d.tree_num);});
+
+        // create the fourth column for each segment.
+        tr.append("td").attr("class",'legendPerc')
+            .text(function(d){ return getLegend(d,lD);});
+
+        // Utility function to be used to update the legend.
+        leg.update = function(nD){
+            // update the data attached to the row elements.
+            var l = legend.select("tbody").selectAll("tr").data(nD);
+
+            // update the frequencies.
+            l.select(".legendFreq").text(function(d){ return d3.format(",")(d.tree_num);});
+
+            // update the percentage column.
+            l.select(".legendPerc").text(function(d){ return getLegend(d,nD);});        
+        }
+        
+        function getLegend(d,aD){ // Utility function to compute percentage.
+            return d3.format("%")(d.tree_num/d3.sum(aD.map(function(v){ return v.tree_num; })));
+        }
+
+        return leg;
+    }
+    
+    // calculate total frequency by segment for all Country.
+    var tF = ['over10','over15','over20','over25','over30','over50','over75'].map(function(d){ 
+        return {type:d, tree_num: d3.sum(fData.map(function(t){ return t.tree_num[d];}))}; 
+    });    
+    
+    // calculate total frequency by Country for all segment.
+    var sF = fData.map(function(d){return [d.Country_Ch,d.total];});
+
+    var hG = histoGram(sF), // create the histogram.
+        pC = pieChart(tF), // create the pie-chart.
+        leg= legend(tF);  // create the legend.
+}
+</script>
+
+<script>
+var freqData=[
+{Country_Ch:'俄羅斯',Country_En:'Russia',tree_num:{over10:88384.7,over15:82406.6,over20:81002,over25:78605.8,over30:76122.7,over50:60126.8,over75:33049.2}},
+{Country_Ch:'巴西',Country_En:'Brazil',tree_num:{over10:54844.3,over15:54149.2,over20:53240.2,over25:52662.2,over30:51918.7,over50:47568.8,over75:33049.2}},
+{Country_Ch:'加拿大',Country_En:'Canada',tree_num:{over10:46956.8,over15:44882.4,over20:43709.8,over25:43100.9,over30:41806.6,over50:32418,over75:42923.3}},
+{Country_Ch:'美國',Country_En:'United States',tree_num:{over10:31496.4,over15:30302.1,over20:29387.1,over25:28703.5,over30:27937.6,over50:24456.7,over75:21671.9}},
+{Country_Ch:'剛果民主共和國',Country_En:'Democratic Republic of the Congo',tree_num:{over10:22768.3,over15:22608.7,over20:21437.3,over25:21128.5,over30:19922.4,over50:16436.1,over75:19829}},
+{Country_Ch:'印尼',Country_En:'Indonesia',tree_num:{over10:16544.1,over15:16397.6,over20:16311.9,over25:16221.8,over30:16097.4,over50:15538.5,over75:11904.9}},
+{Country_Ch:'中國',Country_En:'China',tree_num:{over10:18901.4,over15:17944.1,over20:17554.7,over25:17016.4,over30:16273.9,over50:13136.6,over75:14118.5}},
+{Country_Ch:'哥倫比亞',Country_En:'Colombia',tree_num:{over10:8448.2,over15:8362.1,over20:8290.4,over25:8244.9,over30:8178.1,over50:7829.5,over75:6189.1}},
+{Country_Ch:'秘魯',Country_En:'Peru',tree_num:{over10:7906.2,over15:7870.2,over20:7843.5,over25:7823.4,over30:7806.9,over50:7681.4,over75:7217}},
+{Country_Ch:'玻利維亞',Country_En:'Bolivia',tree_num:{over10:6648.6,over15:6601.2,over20:6545.4,over25:6500.4,over30:6452.1,over50:5748.9,over75:7445.8}},
+{Country_Ch:'安哥拉',Country_En:'Angola',tree_num:{over10:9595.1,over15:8280.8,over20:6595.7,over25:6335.6,over30:5531.5,over50:3193.4,over75:4783.7}},
+{Country_Ch:'委內瑞拉',Country_En:'Venezuela',tree_num:{over10:5885.6,over15:5822,over20:5754.8,over25:5711.8,over30:5653.3,over50:5374.6,over75:378.7}},
+{Country_Ch:'墨西哥',Country_En:'Mexico',tree_num:{over10:6372.4,over15:6031.7,over20:5751.1,over25:5523.3,over30:5318.5,over50:4213.2,over75:4936.8}},
+{Country_Ch:'澳大利亞',Country_En:'Australia',tree_num:{over10:6595.7,over15:5757.9,over20:4824.8,over25:4666.5,over30:4230.9,over50:2573.7,over75:2950.1}},
+{Country_Ch:'巴布亞新幾內亞',Country_En:'Papua New Guinea',tree_num:{over10:4370.8,over15:4342.7,over20:4328.8,over25:4315.7,over30:4293.8,over50:4199.2,over75:1778.8}},
+{Country_Ch:'緬甸',Country_En:'Myanmar',tree_num:{over10:4508.1,over15:4421.8,over20:4392.6,over25:4357.6,over30:4285.9,over50:3979,over75:3966.3}},
+{Country_Ch:'印度',Country_En:'India',tree_num:{over10:4907.1,over15:4493.7,over20:4368.4,over25:4171.9,over30:3881.3,over50:3045,over75:2744.2}},
+{Country_Ch:'莫三比克',Country_En:'Mozambique',tree_num:{over10:7094.2,over15:5948.9,over20:3985.9,over25:3716.2,over30:2891.7,over50:1049.3,over75:1678.2}},
+{Country_Ch:'阿根廷',Country_En:'Argentina',tree_num:{over10:4338,over15:4237.6,over20:4125.2,over25:4014.4,over30:3908.6,over50:2311.6,over75:34.1}},
+{Country_Ch:'坦尚尼亞',Country_En:'Tanzania',tree_num:{over10:6524.3,over15:5484,over20:3645.2,over25:3405.6,over30:2640.6,over50:970,over75:1059.4}},
+{Country_Ch:'喀麥隆',Country_En:'Cameroon',tree_num:{over10:4171.6,over15:3999.4,over20:3515.8,over25:3425.5,over30:3145.9,over50:2526,over75:123.1}},
+{Country_Ch:'尚比亞',Country_En:'Zambia',tree_num:{over10:6114.4,over15:5103.9,over20:3409.5,over25:3161.4,over30:2408.7,over50:919.6,over75:1748.1}},
+{Country_Ch:'馬來西亞',Country_En:'Malaysia',tree_num:{over10:2977.7,over15:2965.8,over20:2957.5,over25:2952.2,over30:2942.1,over50:2896.8,over75:4.2}},
+{Country_Ch:'剛果',Country_En:'Republic of Congo',tree_num:{over10:3351.5,over15:3247.7,over20:2928.5,over25:2856.8,over30:2638.4,over50:2394.1,over75:2724.1}},
+{Country_Ch:'泰國',Country_En:'Thailand',tree_num:{over10:2191.9,over15:2120,over20:2087,over25:2055.6,over30:1996.2,over50:1796.6,over75:2141.7}},
+{Country_Ch:'馬達加斯加',Country_En:'Madagascar',tree_num:{over10:3319,over15:2650.3,over20:1945.4,over25:1865.6,over30:1714.1,over50:1224.1,over75:1104.4}},
+{Country_Ch:'蓋亞那',Country_En:'Guyana',tree_num:{over10:1906.8,over15:1905.1,over20:1903,over25:1901,over30:1899.6,over50:1890,over75:586.3}},
+{Country_Ch:'厄瓜多',Country_En:'Ecuador',tree_num:{over10:1980.7,over15:1957.4,over20:1937.8,over25:1923.4,over30:1906.5,over50:1795.1,over75:1876.8}},
+{Country_Ch:'寮國',Country_En:'Laos',tree_num:{over10:1978.9,over15:1954.5,over20:1943,over25:1930.5,over30:1911.8,over50:1811.4,over75:1587.7}},
+{Country_Ch:'菲律賓',Country_En:'Philippines',tree_num:{over10:1979.8,over15:1938.4,over20:1916.5,over25:1899.3,over30:1859.9,over50:1741.5,over75:1449}},
+{Country_Ch:'象牙海岸',Country_En:'Côte dIvoire',tree_num:{over10:3092.4,over15:2724.8,over20:1891,over25:1799.2,over30:1487.2,over50:635.7,over75:1411}},
+{Country_Ch:'越南',Country_En:'Vietnam',tree_num:{over10:1817.2,over15:1756.2,over20:1726.4,over25:1701,over30:1657.6,over50:1478.2,over75:51.1}},
+{Country_Ch:'奈及利亞',Country_En:'Nigeria',tree_num:{over10:4257.9,over15:2669.4,over20:1397.4,over25:1293.8,over30:1004.8,over50:472.5,over75:1069.5}},
+{Country_Ch:'衣索比亞',Country_En:'Ethiopia',tree_num:{over10:3113.5,over15:2529.1,over20:1651.3,over25:1547.8,over30:1204,over50:542.5,over75:31.5}},
+{Country_Ch:'蘇利南',Country_En:'Suriname',tree_num:{over10:1398.2,over15:1397.2,over20:1396.4,over25:1395.5,over30:1394.9,over50:1391.3,over75:203.9}},
+{Country_Ch:'幾內亞',Country_En:'Guinea',tree_num:{over10:2256.7,over15:1937.6,over20:1242.6,over25:1134.7,over30:815.9,over50:215.5,over75:1385.6}},
+{Country_Ch:'烏干達',Country_En:'Uganda',tree_num:{over10:1836.5,over15:1597.2,over20:1069.4,over25:997.9,over30:776.9,over50:327.2,over75:18.2}},
+{Country_Ch:'南非共和國',Country_En:'South Africa',tree_num:{over10:2221.2,over15:1348.1,over20:770.8,over25:712.1,over30:598.3,over50:316.3,over75:84.9}},
+{Country_Ch:'迦納',Country_En:'Ghana',tree_num:{over10:1833,over15:1328.2,over20:823,over25:791.9,over30:695.5,over50:425.3,over75:108.2}},
+{Country_Ch:'法屬圭亞那',Country_En:'French Guiana',tree_num:{over10:817,over15:816.8,over20:816.6,over25:816.4,over30:816.2,over50:815.3,over75:20.7}},
+{Country_Ch:'尼加拉瓜',Country_En:'Nicaragua',tree_num:{over10:838.9,over15:821.1,over20:803.7,over25:791.9,over30:777.6,over50:706.7,over75:813.1}},
+{Country_Ch:'瓜地馬拉',Country_En:'Guatemala',tree_num:{over10:827.3,over15:810.8,over20:794.9,over25:782.2,over30:769.3,over50:695.1,over75:582.8}},
+{Country_Ch:'宏都拉斯',Country_En:'Honduras',tree_num:{over10:844,over15:825.4,over20:804.7,over25:788.3,over30:774,over50:669.6,over75:575.6}},
+{Country_Ch:'巴拿馬',Country_En:'Panama',tree_num:{over10:594.2,over15:587.1,over20:580.7,over25:576.3,over30:570,over50:545.4,over75:526.6}},
+{Country_Ch:'辛巴威',Country_En:'Zimbabwe',tree_num:{over10:1837.5,over15:887.6,over20:293.7,over25:241,over30:141.4,over50:29.3,over75:496.9}},
+{Country_Ch:'肯亞',Country_En:'Kenya',tree_num:{over10:1100.5,over15:758.4,over20:429.2,over25:397.5,over30:331.9,over50:189.1,over75:7.9}},
+{Country_Ch:'哥斯大黎加',Country_En:'Costa Rica',tree_num:{over10:410.5,over15:404.6,over20:399.4,over25:396,over30:391.3,over50:368.4,over75:96.3}},
+{Country_Ch:'巴基斯坦',Country_En:'Pakistan',tree_num:{over10:162.9,over15:129.1,over20:122.2,over25:107.4,over30:97.8,over50:66.6,over75:33.4}}
+];
+
+dashboard('#dashboard',freqData);
+</script>
